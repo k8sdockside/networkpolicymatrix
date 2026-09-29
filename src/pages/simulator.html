@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Policy simulator</title>
+        <link rel="stylesheet" href="networkpolicymatrix.css" />
+        <script src="/plugin-ui/_sdk/k8sdockside.js"></script>
+    </head>
+    <body class="page">
+        <header class="top">
+            <div class="brand">
+                <span class="logo" id="logo"></span>
+                <div>
+                    <h1>Can it connect?</h1>
+                    <p id="where" class="faint">Connecting…</p>
+                </div>
+            </div>
+            <button id="refresh" type="button" class="ghost">Refresh</button>
+        </header>
+
+        <p id="error" class="banner error" role="alert" hidden></p>
+
+        <form id="form" class="sim" autocomplete="off">
+            <label class="end">
+                <span class="faint small">From</span>
+                <select id="from" class="picker wide"></select>
+                <input id="from-ip" class="picker" placeholder="an address, e.g. 203.0.113.10" spellcheck="false" hidden />
+            </label>
+            <button id="swap" type="button" class="ghost swap" title="Swap from and to">⇄</button>
+            <label class="end">
+                <span class="faint small">To</span>
+                <select id="to" class="picker wide"></select>
+                <input id="to-ip" class="picker" placeholder="an address, e.g. 1.1.1.1" spellcheck="false" hidden />
+            </label>
+            <label>
+                <span class="faint small">Port</span>
+                <input id="port" class="picker narrow" inputmode="numeric" placeholder="any" />
+            </label>
+            <label>
+                <span class="faint small">Protocol</span>
+                <select id="protocol" class="picker narrow"><option>TCP</option><option>UDP</option><option>SCTP</option></select>
+            </label>
+        </form>
+
+        <main id="main">
+            <div class="loading"><span class="pulse"></span> Reading pods and policies…</div>
+        </main>
+
+        <!-- Built from src/pages/simulator.ts. -->
+        <script src="simulator.js"></script>
+    </body>
+</html>

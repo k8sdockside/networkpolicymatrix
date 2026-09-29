@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Policy matrix</title>
+        <link rel="stylesheet" href="networkpolicymatrix.css" />
+        <!-- The bridge to the app. Served by K8s Dockside itself, always at this path. -->
+        <script src="/plugin-ui/_sdk/k8sdockside.js"></script>
+    </head>
+    <body class="page">
+        <header class="top">
+            <div class="brand">
+                <span class="logo" id="logo"></span>
+                <div>
+                    <h1>Who can talk to whom</h1>
+                    <p id="where" class="faint">Connecting…</p>
+                </div>
+            </div>
+            <div class="pick">
+                <div class="seg" role="group" aria-label="Rows and columns are">
+                    <button id="lvl-ns" type="button">Namespaces</button>
+                    <button id="lvl-wl" type="button">Workloads</button>
+                </div>
+                <label id="ns-wrap"><span class="faint small">Namespace</span><select id="namespace" class="picker"></select></label>
+                <label class="check"><input id="system" type="checkbox" /> <span>Show kube-* namespaces</span></label>
+                <button id="refresh" type="button" class="ghost">Refresh</button>
+            </div>
+        </header>
+
+        <p id="error" class="banner error" role="alert" hidden></p>
+        <section id="findings" class="findings"></section>
+
+        <main id="main">
+            <div class="loading"><span class="pulse"></span> Reading pods and policies…</div>
+        </main>
+        <section id="detail"></section>
+
+        <!-- A classic script, not a module: built from src/pages/matrix.ts. -->
+        <script src="matrix.js"></script>
+    </body>
+</html>

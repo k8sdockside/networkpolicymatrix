@@ -1,0 +1,49 @@
+{
+    "$schema": "https://raw.githubusercontent.com/k8sdockside/k8sdockside/main/docs/plugin.schema.json",
+    "id": "networkpolicymatrix",
+    "name": "Network policy matrix",
+    "version": "0.1.0",
+    "minAppVersion": "0.1.1",
+    "tagline": "who can talk to whom, and why",
+    "category": "networking",
+    "icon": "shield",
+    "logo": "logo.svg",
+    "author": "K8s Dockside",
+    "docs": "https://kubernetes.io/docs/concepts/services-networking/network-policies/",
+    "links": [
+        { "label": "Network Policies", "url": "https://kubernetes.io/docs/concepts/services-networking/network-policies/" },
+        { "label": "Source", "url": "https://github.com/k8sdockside/networkpolicymatrix" }
+    ],
+    "description": "The cluster's NetworkPolicies worked out into a matrix: every namespace, or every workload, against every other and the world outside, coloured by whether it can connect on any port, some ports or none. Click a square for the reason: which policies isolate each end, and which rule lets the traffic through, or that none does.\n\nStart with Matrix; it also lists what is worth knowing, like workloads whose egress rules forgot DNS, policies that select no pods, and namespaces with no policies at all. Simulator asks about one connection on one port, including to and from addresses outside the cluster. Pods get a Network access panel and NetworkPolicies a panel with their rules in words.\n\nIt reads Kubernetes NetworkPolicy only, and says so when Cilium, Calico or AdminNetworkPolicy rules are in the cluster too. It only reads.",
+    "requires": [
+        { "kind": "pods", "label": "Pods" },
+        { "kind": "networkpolicies", "label": "Network Policies" }
+    ],
+    "ui": {
+        "kinds": [
+            "namespaces",
+            "replicasets",
+            "jobs",
+            "daemonsets",
+            "deployments",
+            "statefulsets",
+            "cronjobs",
+            "crd:ciliumnetworkpolicies.cilium.io",
+            "crd:ciliumclusterwidenetworkpolicies.cilium.io",
+            "crd:networkpolicies.crd.projectcalico.org",
+            "crd:globalnetworkpolicies.crd.projectcalico.org",
+            "crd:adminnetworkpolicies.policy.networking.k8s.io",
+            "crd:baselineadminnetworkpolicies.policy.networking.k8s.io"
+        ]
+    },
+    "views": [
+        { "id": "matrix", "label": "Matrix", "icon": "columns", "type": "custom", "entry": "matrix.html" },
+        { "id": "simulator", "label": "Simulator", "icon": "route", "type": "custom", "entry": "simulator.html" },
+        { "id": "policies", "label": "Network Policies", "icon": "shield", "kind": "networkpolicies" }
+    ],
+    "cards": [{ "label": "Network Policies", "kind": "networkpolicies" }],
+    "sections": [
+        { "id": "pod-access", "label": "Network access", "kind": "pods", "entry": "pod.html", "height": 200 },
+        { "id": "policy-rules", "label": "What it allows", "kind": "networkpolicies", "entry": "policy.html", "height": 200 }
+    ]
+}
