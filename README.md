@@ -3,7 +3,7 @@
 A [K8s Dockside](https://github.com/k8sdockside/k8sdockside) plugin that works
 out the cluster's NetworkPolicies into **who can talk to whom, and why**.
 
-- **Matrix.** Every namespace, or every workload in one namespace or all of
+- **Matrix** (the page the plugin opens on). Every namespace, or every workload in one namespace or all of
   them, against every other and against the world outside the cluster. Rows
   are the source and columns the destination. Each square is green (any
   port), amber (some ports) or red (nothing). Click a square for the reason:

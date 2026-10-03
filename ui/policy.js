@@ -277,7 +277,7 @@
       ),
       el("p", { class: "dim small" }, `Isolates ${[t.ingress ? "ingress" : "", t.egress ? "egress" : ""].filter(Boolean).join(" and ")}. Other policies selecting the same pods add to what this one allows; none can take anything away.`),
       el("div", { class: t.ingress && t.egress ? "sides two" : "sides one" }, block("ingress"), block("egress")),
-      el("p", {}, button("Open the matrix", () => void k8sdockside.openView("matrix").catch(showError), { class: "ghost" }))
+      el("p", {}, button("Open the matrix", () => void k8sdockside.openView("overview").catch(showError), { class: "ghost" }))
     );
   }
   start().catch(showError);
