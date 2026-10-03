@@ -333,6 +333,63 @@
     return `${direction === "ingress" ? "from" : "to"} ${who}, on ${ports}`;
   }
 
+  // src/model/summary.ts
+  function posture(groups, policies, world) {
+    const byNs = /* @__PURE__ */ new Map();
+    for (const g of groups) byNs.set(g.namespace, [...byNs.get(g.namespace) ?? [], g]);
+    const out = [];
+    for (const [namespace, gs] of byNs) {
+      let ingress = 0;
+      let egress = 0;
+      for (const g of gs) {
+        if (world.selecting(g.rep, "ingress").length) ingress++;
+        if (world.selecting(g.rep, "egress").length) egress++;
+      }
+      const state = ingress === gs.length ? "isolated" : ingress === 0 && egress === 0 ? "open" : "partial";
+      out.push({ namespace, workloads: gs.length, ingress, egress, policies: policies.filter((p) => (p.metadata.namespace ?? "") === namespace).length, state });
+    }
+    const rank = { open: 0, partial: 1, isolated: 2 };
+    return out.sort((a, b) => rank[a.state] - rank[b.state] || a.namespace.localeCompare(b.namespace));
+  }
+  function postureCounts(list2) {
+    const out = { isolated: 0, partial: 0, open: 0 };
+    for (const p of list2) out[p.state]++;
+    return out;
+  }
+  function tally(cells2) {
+    const t = { all: 0, some: 0, none: 0, total: 0 };
+    for (const c of cells2) {
+      t[c]++;
+      t.total++;
+    }
+    return t;
+  }
+  function percent(n, total) {
+    return total > 0 ? Math.round(n / total * 100) : 0;
+  }
+  function toneCounts(list2) {
+    const out = { error: 0, warn: 0, info: 0 };
+    for (const f of list2) out[f.tone]++;
+    return out;
+  }
+  function idlePolicies(pods, policies) {
+    return policies.filter((np) => {
+      const ns = np.metadata.namespace ?? "";
+      return !pods.some((p) => (p.metadata.namespace ?? "") === ns && matches(np.spec?.podSelector ?? {}, p.metadata.labels));
+    });
+  }
+  function arcs(t) {
+    if (!t.total) return [];
+    const out = [];
+    let at = 0;
+    for (const key of ["all", "some", "none"]) {
+      const length = t[key] / t.total;
+      if (length > 0) out.push({ key, start: at, length });
+      at += length;
+    }
+    return out;
+  }
+
   // src/model/findings.ts
   function findings(groups, pods, policies, world, engines) {
     const out = [];
@@ -383,10 +440,7 @@
         });
       }
     }
-    const idle = policies.filter((np) => {
-      const ns = np.metadata.namespace ?? "";
-      return !pods.some((p) => (p.metadata.namespace ?? "") === ns && matches(np.spec?.podSelector ?? {}, p.metadata.labels));
-    });
+    const idle = idlePolicies(pods, policies);
     if (idle.length) {
       out.push({
         tone: "info",
@@ -657,9 +711,21 @@
   var showSystem = hash.system === "1";
   var selected = hash.row && hash.col ? { row: hash.row, col: hash.col } : null;
   var data = null;
+  var found = [];
   var parties = [];
   var cells = /* @__PURE__ */ new Map();
   var CELL_TEXT = { all: "any port", some: "some ports", none: "nothing" };
+  var POSTURE_TEXT = { isolated: "isolated", partial: "partly isolated", open: "wide open" };
+  var ICON = {
+    error: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+    warn: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l6.6 11.7H1.4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.3v3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.6" r=".9" fill="currentColor"/></svg>`,
+    info: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.2v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.9" r=".9" fill="currentColor"/></svg>`
+  };
+  var ICON_OK = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.2 8.2l2 2 3.8-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  var ICON_SHIELD = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l5.5 2v4.2c0 3.3-2.3 5.8-5.5 6.8-3.2-1-5.5-3.5-5.5-6.8V3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  var ICON_BOX = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l6 3v7l-6 3-6-3v-7z M2 4.5l6 3 6-3 M8 7.5v7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  var ICON_DOC = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5.5l3 3v10h-8.5z M9.5 1.5v3h3 M6 8h5 M6 10.5h5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  var ICON_ROUTE = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="12.5" r="2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.5" cy="3.5" r="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 12.5h4a2.5 2.5 0 000-5h-3a2.5 2.5 0 010-5h4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`;
   async function start() {
     const ctx = await k8sdockside.ready();
     byId("logo").append(svg(LOGO, "mark"));
@@ -681,24 +747,35 @@
       render();
     });
     byId("refresh").addEventListener("click", () => void refresh());
+    document.addEventListener("scroll", () => byId("tip").hidden = true, { capture: true, passive: true });
     await refresh();
   }
-  function setLevel(next) {
+  function setLevel(next, ns) {
     level = next;
+    if (ns !== void 0) nsFilter = ns;
     selected = null;
     compute();
     render();
   }
   async function refresh() {
+    const btn = byId("refresh");
+    btn.disabled = true;
     try {
       data = await load();
       clearError();
       byId("where").textContent = `${(await k8sdockside.ready()).contextName} · ${data.policies.length} NetworkPolicies · read at ${when()}`;
-      drawFindings(findings(data.groups, data.pods, data.policies, data.world, data.engines));
+      found = findings(data.groups, data.pods, data.policies, data.world, data.engines);
+      drawFindings(found);
       compute();
       render();
     } catch (err) {
       showError(err);
+      if (!data) {
+        replace(byId("overview"));
+        replace(byId("main"), emptyState(ICON.error, "Could not read the cluster", "The error is above. Press Refresh to try again."));
+      }
+    } finally {
+      btn.disabled = false;
     }
   }
   function visibleNamespace(ns) {
@@ -715,6 +792,11 @@
   }
   function cellAt(row, col) {
     return cells.get(`${row}>${col}`) ?? [];
+  }
+  function pairTally() {
+    const states = [];
+    for (const r of parties) for (const c of parties) if (r.namespace !== null || c.namespace !== null) states.push(cellOf(cellAt(r.id, c.id)));
+    return tally(states);
   }
   function axes() {
     if (level === "wl") {
@@ -738,8 +820,179 @@
         states.push(cellOf(cellAt(r.id, c.id)));
       }
     }
-    return { cell: combine(states), open: states.filter((s) => s !== "none").length, total: states.length };
+    return { cell: combine(states), open: states.filter((s) => s !== "none").length, total: states.length, na: !states.length };
   }
+  function blockText(r, c, b) {
+    if (r.members.length === 1 && c.members.length === 1) return describe(cellAt(r.members[0].id, c.members[0].id));
+    return `${b.open} of ${b.total} workload pair${b.total === 1 ? "" : "s"} can connect`;
+  }
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+    return node;
+  }
+  function donut(t) {
+    const root = svgEl("svg", { viewBox: "0 0 42 42", class: "donut", "aria-hidden": "true" });
+    root.append(svgEl("circle", { cx: 21, cy: 21, r: 15.915, class: "donut-track" }));
+    for (const a of arcs(t)) {
+      const len = a.length * 100;
+      const gap = a.length < 1 ? Math.min(0.8, len / 3) : 0;
+      root.append(svgEl("circle", { cx: 21, cy: 21, r: 15.915, class: `donut-seg c-${a.key}`, "stroke-dasharray": `${len - gap} ${100 - len + gap}`, "stroke-dashoffset": 25 - a.start * 100 }));
+    }
+    return root;
+  }
+  function stack(parts) {
+    const total = parts.reduce((s, p) => s + p.n, 0);
+    const bar = el("div", { class: "stack", role: "img", "aria-label": parts.map((p) => `${p.n} ${p.label}`).join(", ") });
+    for (const p of parts) if (p.n) bar.append(el("span", { class: `stack-part ${p.cls}`, style: `flex-grow:${p.n}`, title: `${p.n} ${p.label}` }));
+    if (!total) bar.append(el("span", { class: "stack-part empty-part", style: "flex-grow:1" }));
+    return bar;
+  }
+  function meter(label, n, total) {
+    const p = percent(n, total);
+    return el(
+      "div",
+      { class: "meter" },
+      el("div", { class: "meter-top" }, el("span", { class: "dim" }, label), el("span", {}, el("strong", {}, String(n)), el("span", { class: "faint" }, ` / ${total}`))),
+      el("div", { class: "meter-bar" }, el("span", { class: `meter-fill ${p === 100 ? "full" : p === 0 ? "zero" : ""}`, style: `width:${p}%` }))
+    );
+  }
+  function tile(icon, title, value, ...body) {
+    return el(
+      "div",
+      { class: "tile" },
+      el("div", { class: "tile-head" }, svg(icon, "ico"), el("span", {}, title)),
+      el("div", { class: "tile-value" }, value),
+      ...body
+    );
+  }
+  function dotLegend(items) {
+    return el("div", { class: "mini-legend" }, ...items.map((i) => el("span", { class: "ml" }, el("span", { class: `dot ${i.cls}` }), el("strong", {}, String(i.n)), ` ${i.label}`)));
+  }
+  function renderOverview() {
+    if (!data) return;
+    const groups = data.groups.filter((g) => visibleNamespace(g.namespace));
+    const policies = data.policies.filter((p) => visibleNamespace(p.metadata.namespace ?? ""));
+    const nsList = posture(groups, policies, data.world);
+    const pc = postureCounts(nsList);
+    const ingress = nsList.reduce((s, n) => s + n.ingress, 0);
+    const egress = nsList.reduce((s, n) => s + n.egress, 0);
+    const idle = idlePolicies(data.pods, policies).length;
+    const t = pairTally();
+    const tones = toneCounts(found);
+    const nsCovered = new Set(policies.map((p) => p.metadata.namespace ?? "")).size;
+    const nsTile = tile(
+      ICON_SHIELD,
+      "Namespaces",
+      String(nsList.length),
+      stack([
+        { n: pc.isolated, cls: "p-isolated", label: "isolated" },
+        { n: pc.partial, cls: "p-partial", label: "partly isolated" },
+        { n: pc.open, cls: "p-open", label: "wide open" }
+      ]),
+      dotLegend([
+        { n: pc.isolated, cls: "p-isolated", label: "isolated" },
+        { n: pc.partial, cls: "p-partial", label: "partly" },
+        { n: pc.open, cls: "p-open", label: "wide open" }
+      ])
+    );
+    const wlTile = tile(ICON_BOX, "Workloads", String(groups.length), meter("Ingress isolated", ingress, groups.length), meter("Egress isolated", egress, groups.length));
+    const polTile = tile(
+      ICON_DOC,
+      "NetworkPolicies",
+      String(policies.length),
+      el(
+        "div",
+        { class: "tile-lines" },
+        el("div", {}, el("strong", {}, String(nsCovered)), el("span", { class: "dim" }, ` of ${nsList.length} namespace${nsList.length === 1 ? "" : "s"} have one`)),
+        idle ? el("div", { class: "warn-text" }, svg(ICON.warn, "ico-s"), ` ${idle} select${idle === 1 ? "s" : ""} no pods`) : el("div", { class: "ok-text" }, svg(ICON_OK, "ico-s"), policies.length ? " every one selects pods" : " none yet")
+      )
+    );
+    const openShare = percent(t.all + t.some, t.total);
+    const pathsTile = el(
+      "div",
+      { class: "tile" },
+      el("div", { class: "tile-head" }, svg(ICON_ROUTE, "ico"), el("span", {}, level === "wl" && nsFilter ? `Paths in ${nsFilter}` : "Open paths")),
+      el(
+        "div",
+        { class: "donut-row" },
+        el("div", { class: "donut-box" }, donut(t), el("div", { class: "donut-label" }, el("strong", {}, `${openShare}%`), el("span", { class: "faint" }, "open"))),
+        dotLegend([
+          { n: t.all, cls: "c-all", label: "any port" },
+          { n: t.some, cls: "c-some", label: "some ports" },
+          { n: t.none, cls: "c-none", label: "blocked" }
+        ])
+      ),
+      el("div", { class: "faint small" }, `${t.total} workload pair${t.total === 1 ? "" : "s"}, outside included`)
+    );
+    const fTile = tile(
+      found.length ? ICON[tones.error ? "error" : tones.warn ? "warn" : "info"] : ICON_OK,
+      "Findings",
+      String(found.length),
+      found.length ? el(
+        "div",
+        { class: "pills" },
+        ...["error", "warn", "info"].filter((k) => tones[k]).map(
+          (k) => button("", () => byId("findings").scrollIntoView({ behavior: "smooth", block: "start" }), { class: `pill tone-${k}`, title: `Show the ${k === "warn" ? "warnings" : k === "error" ? "errors" : "notes"}` })
+        )
+      ) : el("div", { class: "ok-text" }, svg(ICON_OK, "ico-s"), " nothing to flag")
+    );
+    fTile.querySelectorAll(".pill").forEach((b) => {
+      const k = ["error", "warn", "info"].find((x) => b.classList.contains(`tone-${x}`));
+      b.append(svg(ICON[k], "ico-s"), el("strong", {}, String(tones[k])), ` ${k === "error" ? "critical" : k === "warn" ? "warning" : "note"}${tones[k] === 1 ? "" : "s"}`);
+    });
+    if (tones.error) fTile.classList.add("alert");
+    replace(byId("overview"), el("div", { class: "tiles" }, nsTile, wlTile, polTile, pathsTile, fTile));
+    renderPosture(nsList, policies.length === 0 && groups.length > 0);
+  }
+  function renderPosture(list2, noPolicies) {
+    const box = byId("posture");
+    if (!list2.length) return replace(box);
+    const hero = noPolicies ? el(
+      "div",
+      { class: "hero" },
+      svg(ICON.info, "ico"),
+      el(
+        "div",
+        {},
+        el("strong", {}, "No NetworkPolicies in view"),
+        el("div", { class: "dim" }, "Nothing is isolated: every pod can connect to every other pod and to the outside world, on any port. The matrix below is all green.")
+      )
+    ) : null;
+    const chips = list2.map((n) => {
+      const b = button("", () => setLevel("wl", n.namespace), {
+        class: `ns-chip p-${n.state}${level === "wl" && nsFilter === n.namespace ? " on" : ""}`,
+        title: `${n.namespace}: ${POSTURE_TEXT[n.state]} · ${n.ingress}/${n.workloads} ingress-isolated · ${n.egress}/${n.workloads} egress-isolated · ${n.policies} polic${n.policies === 1 ? "y" : "ies"}. Click for its workloads.`
+      });
+      b.append(
+        el("span", { class: `dot p-${n.state}` }),
+        el("span", { class: "ns-name" }, n.namespace),
+        el(
+          "span",
+          { class: "ns-dirs" },
+          el("span", { class: `dir ${dirClass(n.ingress, n.workloads)}` }, "in"),
+          el("span", { class: `dir ${dirClass(n.egress, n.workloads)}` }, "out")
+        )
+      );
+      return b;
+    });
+    replace(
+      box,
+      hero,
+      el(
+        "div",
+        { class: "posture-head" },
+        el("h2", {}, "Namespace posture"),
+        el("span", { class: "faint small" }, 'Wide open first. "in" and "out": every, some or no workload isolated for ingress and egress. Click a namespace to see its workloads.')
+      ),
+      el("div", { class: "chips" }, ...chips)
+    );
+  }
+  function dirClass(n, total) {
+    return n === 0 ? "d-none" : n === total ? "d-all" : "d-some";
+  }
+  var currentAxes = [];
   function render() {
     if (!data) return;
     byId("lvl-ns").classList.toggle("on", level === "ns");
@@ -750,41 +1003,108 @@
     replace(nsSel, el("option", { value: "" }, "Every namespace"), ...namespaces.map((ns) => el("option", { value: ns }, ns)));
     nsSel.value = namespaces.includes(nsFilter) ? nsFilter : "";
     writeHash({ level, ns: level === "wl" ? nsFilter : "", system: showSystem ? "1" : "", row: selected?.row ?? "", col: selected?.col ?? "" });
+    renderOverview();
     const ax = axes();
+    currentAxes = ax;
+    const blocks = ax.map((r) => ax.map((c) => blockCell(r.members, c.members)));
+    const shown = tally(blocks.flat().filter((b) => !b.na).map((b) => b.cell));
     const table = el("table", { class: `matrix ${level}` });
-    const headRow = el("tr", {}, el("th", { class: "corner" }, el("span", { class: "faint small" }, "from ↓  to →")));
-    for (const c of ax) headRow.append(el("th", { class: "col-h", title: `${c.label} ${c.sub}` }, el("span", {}, c.label)));
+    const headRow = el("tr", {}, el("th", { class: "corner" }, el("span", { class: "axis-hint" }, el("span", {}, "to →"), el("span", {}, "from ↓"))));
+    ax.forEach((c, j) => headRow.append(el("th", { class: `col-h${c.members.every((m) => m.namespace === null) ? " world" : ""}`, title: `${c.label} ${c.sub}`, "data-c": j }, el("span", {}, c.label))));
     table.append(el("thead", {}, headRow));
     const body = el("tbody");
-    for (const r of ax) {
-      const tr = el("tr", {}, el("th", { class: "row-h", title: `${r.label} ${r.sub}` }, el("span", { class: "row-label" }, r.label), el("span", { class: "faint small" }, r.sub)));
-      for (const c of ax) {
-        const { cell, open, total } = blockCell(r.members, c.members);
-        const na = r.members.every((m) => m.namespace === null) && c.members.every((m) => m.namespace === null);
+    ax.forEach((r, i) => {
+      const tr = el("tr", {}, el("th", { class: `row-h${r.members.every((m) => m.namespace === null) ? " world" : ""}`, title: `${r.label} ${r.sub}`, "data-r": i }, el("span", { class: "row-label" }, r.label), el("span", { class: "faint small" }, r.sub)));
+      ax.forEach((c, j) => {
+        const b = blocks[i][j];
         const td = el("td");
-        if (!na) {
-          const single = r.members.length === 1 && c.members.length === 1;
-          const tip = single ? `${r.label} → ${c.label}: ${describe(cellAt(r.members[0].id, c.members[0].id))}` : `${r.label} → ${c.label}: ${open} of ${total} workload pairs can connect`;
-          const b = button("", () => select(r.id, c.id), { class: `cell c-${cell}${r.id === c.id ? " diag" : ""}`, title: tip, "aria-label": tip });
-          if (selected?.row === r.id && selected.col === c.id) b.classList.add("sel");
-          td.append(b);
+        if (!b.na) {
+          const tip = `${r.label} → ${c.label}: ${blockText(r, c, b)}`;
+          const multi = !(r.members.length === 1 && c.members.length === 1);
+          const node = button("", () => select(r.id, c.id), {
+            class: `cell c-${b.cell}${r.id === c.id ? " diag" : ""}${multi && b.cell === "some" ? " part" : ""}`,
+            "aria-label": tip,
+            "data-r": i,
+            "data-c": j,
+            style: multi && b.cell === "some" ? `--p:${percent(b.open, b.total)}%` : void 0
+          });
+          if (selected?.row === r.id && selected.col === c.id) node.classList.add("sel");
+          td.append(node);
         }
         tr.append(td);
-      }
+      });
       body.append(tr);
-    }
+    });
     table.append(body);
+    hookHover(table, blocks);
     const legend = el(
       "div",
       { class: "legend" },
-      ...["all", "some", "none"].map((c) => el("span", { class: "leg" }, el("span", { class: `cell c-${c} static` }), CELL_TEXT[c])),
-      el("span", { class: "faint small" }, level === "ns" ? "A namespace square sums up every workload pair in it." : "Rows connect to columns.")
+      ...["all", "some", "none"].map((c) => el("span", { class: "leg" }, el("span", { class: `cell c-${c} static` }), el("span", {}, CELL_TEXT[c]), el("span", { class: "leg-n" }, String(shown[c])))),
+      level === "ns" ? el("span", { class: "leg" }, el("span", { class: "cell c-some part static", style: "--p:60%" }), el("span", { class: "faint" }, "fill = share of pairs open")) : null,
+      el("span", { class: "faint small grow right" }, "Rows connect to columns. Hover for a summary, click for the reason.")
     );
-    replace(byId("main"), legend, parties.length > 1 ? el("div", { class: "matrix-wrap" }, table) : el("p", { class: "empty" }, "No running workloads here."));
+    const mainTitle = el(
+      "div",
+      { class: "section-head" },
+      el("h2", {}, level === "ns" ? "Namespace to namespace" : nsFilter ? `Workloads in ${nsFilter}` : "Workload to workload"),
+      level === "wl" && nsFilter ? button("← All namespaces", () => setLevel("ns", ""), { class: "ghost small-btn" }) : null
+    );
+    replace(
+      byId("main"),
+      mainTitle,
+      legend,
+      parties.length > 1 ? el("div", { class: "matrix-wrap" }, table) : emptyState(ICON_BOX, "No running workloads here", showSystem ? "There are no running pods in view." : 'There are no running pods in view. Tick "Show kube-* namespaces" to include the system ones.')
+    );
     renderDetail(ax);
+  }
+  function emptyState(icon, title, text) {
+    return el("div", { class: "empty-state" }, svg(icon, "ico-l"), el("strong", {}, title), el("span", { class: "dim" }, text));
+  }
+  function hookHover(table, blocks) {
+    const tip = byId("tip");
+    let lit = [];
+    const clear = () => {
+      for (const n of lit) n.classList.remove("hl");
+      lit = [];
+      tip.hidden = true;
+    };
+    table.addEventListener("mouseleave", clear);
+    table.addEventListener("mouseover", (e) => {
+      const cell = e.target.closest(".cell[data-r]");
+      if (!cell) return clear();
+      const i = Number(cell.dataset.r);
+      const j = Number(cell.dataset.c);
+      for (const n of lit) n.classList.remove("hl");
+      lit = [...table.querySelectorAll(`th[data-r="${i}"], th[data-c="${j}"]`)];
+      for (const n of lit) n.classList.add("hl");
+      const r = currentAxes[i];
+      const c = currentAxes[j];
+      const b = blocks[i]?.[j];
+      if (!r || !c || !b) return;
+      const verdict = b.cell === "all" ? "Allowed on any port" : b.cell === "some" ? b.open === b.total ? "Allowed on some ports" : "Partly allowed" : "Blocked";
+      replace(
+        tip,
+        el("div", { class: "tip-route" }, el("span", {}, r.label), el("span", { class: "faint" }, " → "), el("span", {}, c.label)),
+        el("div", { class: `tip-verdict v-${b.cell}` }, el("span", { class: `dot c-${b.cell}` }), verdict),
+        el("div", { class: "dim" }, blockText(r, c, b)),
+        el("div", { class: "faint small" }, "Click for the reason")
+      );
+      tip.hidden = false;
+      const box = cell.getBoundingClientRect();
+      const w = tip.offsetWidth;
+      const h = tip.offsetHeight;
+      let x = box.right + 10;
+      if (x + w > window.innerWidth - 8) x = Math.max(8, box.left - w - 10);
+      let y = box.top + box.height / 2 - h / 2;
+      y = Math.min(Math.max(8, y), window.innerHeight - h - 8);
+      tip.style.left = `${x}px`;
+      tip.style.top = `${y}px`;
+    });
   }
   function select(row, col) {
     selected = selected?.row === row && selected.col === col ? null : { row, col };
+    byId("tip").hidden = true;
     render();
     if (selected) byId("detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -799,6 +1119,7 @@
     for (const s of r.members) for (const d of c.members) if (s.namespace !== null || d.namespace !== null) pairs.push({ src: s, dst: d, set: cellAt(s.id, d.id) });
     const rank = { all: 0, some: 1, none: 2 };
     pairs.sort((a, b) => rank[cellOf(a.set)] - rank[cellOf(b.set)] || partyName(a.src).localeCompare(partyName(b.src)));
+    const t = tally(pairs.map((p) => cellOf(p.set)));
     const pick = el("div", { id: "pair" });
     const rows = pairs.map((p) => {
       const tr = el(
@@ -819,8 +1140,18 @@
     });
     replace(
       box,
-      el("h3", {}, `${r.label} → ${c.label}`),
-      el("p", { class: "dim small" }, "Every workload pair in this square. Pick one for the reason."),
+      el(
+        "div",
+        { class: "detail-head" },
+        el("h3", {}, `${r.label} → ${c.label}`),
+        button("Close", () => select(r.id, c.id), { class: "ghost small-btn" })
+      ),
+      stack([
+        { n: t.all, cls: "c-all", label: "pairs on any port" },
+        { n: t.some, cls: "c-some", label: "pairs on some ports" },
+        { n: t.none, cls: "c-none", label: "pairs blocked" }
+      ]),
+      el("p", { class: "dim small" }, `${t.all} on any port · ${t.some} on some ports · ${t.none} blocked. Pick a pair for the reason.`),
       el("div", { class: "pairs" }, el("table", { class: "pair-table" }, el("tbody", {}, ...rows))),
       pick
     );
@@ -844,14 +1175,27 @@
   function drawFindings(list2) {
     const box = byId("findings");
     if (!list2.length) return replace(box);
+    const order = { error: 0, warn: 1, info: 2 };
+    const sorted = [...list2].sort((a, b) => order[a.tone] - order[b.tone]);
     replace(
       box,
-      ...list2.map(
-        (f) => el(
-          "details",
-          { class: `finding tone-${f.tone}` },
-          el("summary", {}, el("span", { class: "f-title" }, f.title), el("span", { class: "dim small" }, ` — ${f.text}`)),
-          f.about.length ? el("div", { class: "about" }, ...f.about.map((a) => el("span", { class: "tag mono" }, a))) : null
+      el("div", { class: "section-head" }, el("h2", {}, "Worth knowing"), el("span", { class: "faint small" }, "Click one to see what it is about.")),
+      el(
+        "div",
+        { class: "finding-grid" },
+        ...sorted.map(
+          (f) => el(
+            "details",
+            { class: `finding tone-${f.tone}` },
+            el(
+              "summary",
+              {},
+              svg(ICON[f.tone], "f-ico"),
+              el("span", { class: "f-body" }, el("span", { class: "f-title" }, f.title), el("span", { class: "dim small f-text" }, f.text)),
+              f.about.length ? el("span", { class: "f-count", title: `${f.about.length} affected` }, String(f.about.length)) : null
+            ),
+            f.about.length ? el("div", { class: "about" }, ...f.about.map((a) => el("span", { class: "tag mono" }, a))) : null
+          )
         )
       )
     );

@@ -14,7 +14,7 @@
         { "label": "Network Policies", "url": "https://kubernetes.io/docs/concepts/services-networking/network-policies/" },
         { "label": "Source", "url": "https://github.com/k8sdockside/networkpolicymatrix" }
     ],
-    "description": "The cluster's NetworkPolicies worked out into a matrix: every namespace, or every workload, against every other and the world outside, coloured by whether it can connect on any port, some ports or none. Click a square for the reason: which policies isolate each end, and which rule lets the traffic through, or that none does.\n\nStart with Matrix; it also lists what is worth knowing, like workloads whose egress rules forgot DNS, policies that select no pods, and namespaces with no policies at all. Simulator asks about one connection on one port, including to and from addresses outside the cluster. Pods get a Network access panel and NetworkPolicies a panel with their rules in words.\n\nIt reads Kubernetes NetworkPolicy only, and says so when Cilium, Calico or AdminNetworkPolicy rules are in the cluster too. It only reads.",
+    "description": "The cluster's NetworkPolicies worked out into a matrix: every namespace, or every workload, against every other and the world outside, coloured by whether it can connect on any port, some ports or none. Click a square for the reason: which policies isolate each end, and which rule lets the traffic through, or that none does.\n\nThe plugin opens on the matrix, which also lists what is worth knowing, like workloads whose egress rules forgot DNS, policies that select no pods, and namespaces with no policies at all. Simulator asks about one connection on one port, including to and from addresses outside the cluster. Pods get a Network access panel and NetworkPolicies a panel with their rules in words.\n\nIt reads Kubernetes NetworkPolicy only, and says so when Cilium, Calico or AdminNetworkPolicy rules are in the cluster too. It only reads.",
     "requires": [
         { "kind": "pods", "label": "Pods" },
         { "kind": "networkpolicies", "label": "Network Policies" }
@@ -36,8 +36,8 @@
             "crd:baselineadminnetworkpolicies.policy.networking.k8s.io"
         ]
     },
+    "overview": { "entry": "matrix.html" },
     "views": [
-        { "id": "matrix", "label": "Matrix", "icon": "columns", "type": "custom", "entry": "matrix.html" },
         { "id": "simulator", "label": "Simulator", "icon": "route", "type": "custom", "entry": "simulator.html" },
         { "id": "policies", "label": "Network Policies", "icon": "shield", "kind": "networkpolicies" }
     ],

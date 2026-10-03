@@ -29,12 +29,25 @@
         </header>
 
         <p id="error" class="banner error" role="alert" hidden></p>
+
+        <!-- At a glance: tiles, then every namespace's posture. Skeletons until the first read. -->
+        <section id="overview" class="overview" aria-label="At a glance">
+            <div class="tiles">
+                <div class="tile skeleton"></div>
+                <div class="tile skeleton"></div>
+                <div class="tile skeleton"></div>
+                <div class="tile skeleton"></div>
+                <div class="tile skeleton"></div>
+            </div>
+        </section>
+        <section id="posture" class="posture"></section>
         <section id="findings" class="findings"></section>
 
         <main id="main">
             <div class="loading"><span class="pulse"></span> Reading pods and policies…</div>
         </main>
         <section id="detail"></section>
+        <div id="tip" class="tip" role="tooltip" hidden></div>
 
         <!-- A classic script, not a module: built from src/pages/matrix.ts. -->
         <script src="matrix.js"></script>

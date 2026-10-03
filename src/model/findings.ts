@@ -3,7 +3,7 @@
 import type { NetworkPolicy, Pod } from './kube';
 import { contains } from './ports';
 import { evaluate, type World } from './policy';
-import { matches } from './selector';
+import { idlePolicies } from './summary';
 import type { Group } from './groups';
 
 export type Tone = 'warn' | 'info' | 'error';
@@ -79,10 +79,7 @@ export function findings(groups: Group[], pods: Pod[], policies: NetworkPolicy[]
     }
 
     // Policies that select nothing: a typo in a label, or a workload gone.
-    const idle = policies.filter((np) => {
-        const ns = np.metadata.namespace ?? '';
-        return !pods.some((p) => (p.metadata.namespace ?? '') === ns && matches(np.spec?.podSelector ?? {}, p.metadata.labels));
-    });
+    const idle = idlePolicies(pods, policies);
     if (idle.length) {
         out.push({
             tone: 'info',
