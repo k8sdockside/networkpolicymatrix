@@ -442,17 +442,20 @@
     const me = own ? { ...party(own), endpoint: { kind: "pod", pod } } : { id: `${ns}/pods/${pod.metadata.name}`, label: pod.metadata.name, namespace: ns, endpoint: { kind: "pod", pod }, group: null };
     const others = [...data.groups.filter((g) => g.id !== own?.id).map(party), outside()];
     const column = (direction) => {
-      const title = direction === "ingress" ? "Who can connect to it" : "What it can connect to";
-      const box = el("div", { class: "side" }, el("div", { class: "side-title" }, title));
+      const sec = k8sdockside.ui.section(
+        direction === "ingress" ? { id: "ingress", title: "Who can connect to it", what: "who can connect to it" } : { id: "egress", title: "What it can connect to", what: "what it can connect to" }
+      );
+      const box = el("div", { class: "side" });
+      sec.body.append(box);
       if (pod.spec?.hostNetwork) {
         box.append(el("p", {}, "It runs on the host network, where NetworkPolicy does not apply."));
-        return box;
+        return sec.root;
       }
       const policies = data.world.selecting(pod, direction);
       if (!policies.length) {
         box.classList.add("open");
         box.append(el("p", {}, direction === "ingress" ? "Not isolated: anything may connect to it." : "Not isolated: it may connect anywhere."));
-        return box;
+        return sec.root;
       }
       box.append(el("p", { class: "dim small" }, "Isolated by ", ...policies.flatMap((np, i) => [i ? ", " : "", button(np.metadata.name, () => openPolicy(np), { class: "link mono" })])));
       const reach = [];
@@ -460,10 +463,11 @@
         const v = direction === "ingress" ? evaluate(o.endpoint, me.endpoint, data.world) : evaluate(me.endpoint, o.endpoint, data.world);
         if (cellOf(v.allowed) !== "none") reach.push({ p: o, set: v.allowed });
       }
+      sec.setCount(reach.length);
       if (!reach.length) {
         box.classList.add("closed");
         box.append(el("p", { class: "deny" }, direction === "ingress" ? "Nothing may connect to it." : "It may connect to nothing."));
-        return box;
+        return sec.root;
       }
       const list2 = el("ul", { class: "reach" });
       for (const r of reach.slice(0, SHOWN)) {
@@ -473,7 +477,7 @@
       }
       box.append(list2);
       if (reach.length > SHOWN) box.append(el("p", { class: "faint small" }, `and ${reach.length - SHOWN} more — see the matrix.`));
-      return box;
+      return sec.root;
     };
     replace(byId("main"), el("div", { class: "sides two" }, column("ingress"), column("egress")));
   }

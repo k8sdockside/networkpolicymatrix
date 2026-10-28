@@ -261,10 +261,14 @@
     const block = (direction) => {
       if (!t[direction]) return null;
       const rules = (direction === "ingress" ? np.spec?.ingress : np.spec?.egress) ?? [];
-      const box = el("div", { class: `side ${rules.length ? "open" : "closed"}` }, el("div", { class: "side-title" }, direction === "ingress" ? "Lets in" : "Lets out"));
+      const sec = k8sdockside.ui.section(
+        direction === "ingress" ? { id: "ingress", title: "Lets in", count: rules.length, what: "the ingress rules" } : { id: "egress", title: "Lets out", count: rules.length, what: "the egress rules" }
+      );
+      const box = el("div", { class: `side ${rules.length ? "open" : "closed"}` });
       if (!rules.length) box.append(el("p", { class: "deny" }, direction === "ingress" ? "Nothing: it denies every connection in." : "Nothing: it denies every connection out."));
       else box.append(el("ol", { class: "rules" }, ...rules.map((r) => el("li", {}, describeRule(r, direction)))));
-      return box;
+      sec.body.append(box);
+      return sec.root;
     };
     replace(
       byId("main"),

@@ -3,7 +3,7 @@
     "id": "networkpolicymatrix",
     "name": "Network policy matrix",
     "version": "0.1.0",
-    "minAppVersion": "0.1.1",
+    "minAppVersion": "0.1.36",
     "tagline": "who can talk to whom, and why",
     "category": "networking",
     "icon": "shield",
